@@ -3,6 +3,7 @@ import sharp from 'sharp'
 import { v4 as uuidv4 } from 'uuid'
 import fs from 'fs'
 import path from 'path'
+import { insertImage } from '../../lib/database'
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -57,6 +58,16 @@ export default async function handler(req, res) {
 
     const compressedSize = fs.statSync(compressedPath).size
     const actualReduction = ((originalSize - compressedSize) / originalSize) * 100
+
+    // Save to database
+    insertImage.run(
+      req.file.originalname,
+      compressedFilename,
+      originalSize,
+      compressedSize,
+      quality,
+      actualReduction
+    )
 
     res.json({
       success: true,
