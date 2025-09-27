@@ -3,9 +3,7 @@ import fs from 'fs';
 import sharp from 'sharp';
 
 export const config = {
-  api: {
-    bodyParser: false, // we need raw file parsing
-  },
+  api: { bodyParser: false },
 };
 
 export default async function handler(req, res) {
@@ -26,7 +24,6 @@ export default async function handler(req, res) {
       const inputBuffer = fs.readFileSync(file.filepath);
       const metadata = await sharp(inputBuffer).metadata();
 
-      // Resize based on reduction %
       const scale = (100 - reductionPercent) / 100;
       const width = Math.round(metadata.width * scale);
 
@@ -42,7 +39,6 @@ export default async function handler(req, res) {
         100
       ).toFixed(1);
 
-      // Send back base64 preview and stats
       const base64Image = `data:image/jpeg;base64,${outputBuffer.toString('base64')}`;
 
       res.status(200).json({
