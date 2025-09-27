@@ -34,6 +34,7 @@ export default function Home() {
       
       const data = await response.json()
       if (response.ok) {
+        console.log('API Response:', data)
         setResult(data)
         setError('')
       } else {
@@ -145,12 +146,25 @@ export default function Home() {
               <div className={styles.previewSection}>
                 <h3><i className="fas fa-eye"></i> Preview</h3>
                 <div className={styles.imageContainer}>
-                  <img src={result.previewUrl} alt="Compressed Image" className={styles.previewImage} />
+                  {result.imageData ? (
+                    <img 
+                      src={result.imageData} 
+                      alt="Compressed Image" 
+                      className={styles.previewImage}
+                      onError={(e) => {
+                        console.error('Image load error:', e)
+                        console.log('Image data length:', result.imageData?.length)
+                      }}
+                      onLoad={() => console.log('Image loaded successfully')}
+                    />
+                  ) : (
+                    <p>No image data available</p>
+                  )}
                 </div>
               </div>
               
               <div className={styles.actionButtons}>
-                <a href={result.downloadUrl} className={styles.downloadBtn} download>
+                <a href={result.imageData} className={styles.downloadBtn} download="compressed-image.jpg">
                   <i className="fas fa-download"></i>
                   Download
                 </a>
