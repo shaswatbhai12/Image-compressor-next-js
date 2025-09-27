@@ -1,56 +1,79 @@
-import formidable from 'formidable';
-import fs from 'fs';
-import sharp from 'sharp';
+import multer from 'multer'
+import sharp from 'sharp'
+import { v4 as uuidv4 } from 'uuid'
+import fs from 'fs'
+import path from 'path'
 
-export const config = {
-  api: { bodyParser: false },
-};
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 16 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/png', 'image/jpg', 'image/jpeg', 'image/gif', 'image/bmp', 'image/webp']
+    cb(null, allowedTypes.includes(file.mimetype))
+  }
+})
+
+const uploadDir = path.join(process.cwd(), 'public', 'compressed')
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true })
+}
+
+function runMiddleware(req, res, fn) {
+  return new Promise((resolve, reject) => {
+    fn(req, res, (result) => {
+      if (result instanceof Error) {
+        return reject(result)
+      }
+      return resolve(result)
+    })
+  })
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const form = new formidable.IncomingForm();
-  form.parse(req, async (err, fields, files) => {
-    if (err) return res.status(500).json({ error: 'File parsing failed' });
-
-    const reductionPercent = parseInt(fields.reduction || '30');
-    const file = files.file;
-
-    if (!file) return res.status(400).json({ error: 'No file uploaded' });
-
-    try {
-      const inputBuffer = fs.readFileSync(file.filepath);
-      const metadata = await sharp(inputBuffer).metadata();
-
-      const scale = (100 - reductionPercent) / 100;
-      const width = Math.round(metadata.width * scale);
-
-      const outputBuffer = await sharp(inputBuffer)
-        .resize({ width })
-        .jpeg({ quality: 95 })
-        .toBuffer();
-
-      const originalSizeKB = (inputBuffer.length / 1024).toFixed(2);
-      const compressedSizeKB = (outputBuffer.length / 1024).toFixed(2);
-      const actualReduction = (
-        ((inputBuffer.length - outputBuffer.length) / inputBuffer.length) *
-        100
-      ).toFixed(1);
-
-      const base64Image = `data:image/jpeg;base64,${outputBuffer.toString('base64')}`;
-
-      res.status(200).json({
-        success: true,
-        originalSizeKB,
-        compressedSizeKB,
-        actualReduction,
-        preview: base64Image,
-        filename: file.originalFilename.replace(/\s/g, '_'),
-      });
-    } catch (error) {
-      res.status(500).json({ error: 'Compression failed', message: error.message });
+  try {
+    await runMiddleware(req, res, upload.single('file'))
+    
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' })
     }
-  });
+
+    const reduction = parseInt(req.body.reduction) || 30
+    const fileId = uuidv4()
+    const compressedFilename = `${fileId}_compressed.jpg`
+    const compressedPath = path.join(uploadDir, compressedFilename)
+
+    const originalSize = req.file.buffer.length
+    const quality = Math.max(10, 100 - reduction)
+
+    const image = sharp(req.file.buffer)
+    
+    await image
+      .jpeg({ quality, progressive: true })
+      .toFile(compressedPath)
+
+    const compressedSize = fs.statSync(compressedPath).size
+    const actualReduction = ((originalSize - compressedSize) / originalSize) * 100
+
+    res.json({
+      success: true,
+      originalSize: Math.round(originalSize / 1024 * 100) / 100,
+      compressedSize: Math.round(compressedSize / 1024 * 100) / 100,
+      actualReduction: Math.round(actualReduction * 10) / 10,
+      previewUrl: `/compressed/${compressedFilename}`,
+      downloadUrl: `/api/download/${compressedFilename}`
+    })
+
+  } catch (error) {
+    res.status(500).json({ error: 'Compression failed' })
+  }
+}
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
 }
