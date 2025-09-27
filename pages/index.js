@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Head from 'next/head'
 import styles from '../styles/Home.module.css'
 
@@ -8,6 +8,13 @@ export default function Home() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const resultRef = useRef(null)
+
+  useEffect(() => {
+    if (result && resultRef.current) {
+      resultRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [result])
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0])
@@ -122,7 +129,7 @@ export default function Home() {
           </div>
 
           {result && (
-            <div className={styles.resultCard}>
+            <div className={styles.resultCard} ref={resultRef}>
               <div className={styles.resultHeader}>
                 <i className="fas fa-check-circle success-icon"></i>
                 <h2>Compression Complete!</h2>
